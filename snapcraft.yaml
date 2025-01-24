@@ -1,0 +1,54 @@
+name: zapper-classic-pi
+version: 22-2
+summary: Zapper Pi Gadget
+description: |
+  Support files for booting RPi Zapper Unit.
+type: gadget
+base: core22
+assumes: [kernel-assets]
+architectures:
+  - build-on: [amd64, arm64]
+    build-for: [arm64]
+
+package-repositories:
+  - type: apt
+    ppa: snappy-dev/image
+
+confinement: strict
+grade: stable
+parts:
+  gadget:
+    plugin: nil
+    source: .
+    override-build: |
+      set -x
+      # unconditionally set the arch-triplet since this snapcraft.yaml will 
+      # always be used to produce an armhf snap
+      BUILD_ARCH_TRIPLET=aarch64-linux-gnu
+      # but only use the cross-compiling sources when actually cross compiling
+      # as otherwise its just safer to use the build environment - it offers
+      # much more flexibility.
+      if [ "$SNAPCRAFT_ARCH_TRIPLET" = "x86_64-linux-gnu" ] || [ -z "$SNAPCRAFT_ARCH_TRIPLET" ]; then
+        OPTIONAL_ARGS="SERIES_HOST=\"focal\" SOURCES_HOST=\"./helpers/cross-sources.list\" SOURCES_D_HOST=\"./helpers\""
+      fi
+      make -C $SNAPCRAFT_PART_SRC clean \
+        ARCH="$(dpkg-architecture -t $BUILD_ARCH_TRIPLET -q DEB_HOST_ARCH)"
+      make -C $SNAPCRAFT_PART_SRC \
+        DESTDIR=${SNAPCRAFT_PART_INSTALL} \
+        ARCH="$(dpkg-architecture -t $BUILD_ARCH_TRIPLET -q DEB_HOST_ARCH)" \
+        ${OPTIONAL_ARGS:-}
+
+      # snapcraft reads gadget.yaml from project dir
+      cp ${SNAPCRAFT_PART_INSTALL}/meta/gadget.yaml ${SNAPCRAFT_PROJECT_DIR}/gadget.yaml
+    build-packages:
+      - devscripts
+      - distro-info
+      - dpkg-dev
+      - lsb-release
+      - make
+      - u-boot-tools
+
+hooks:
+  prepare-device:
+    environment:
+      MODEL_APIKEY: <MY-MODEL-KEY>
